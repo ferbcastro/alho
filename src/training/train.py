@@ -43,8 +43,19 @@ def setup():
 def train(X: pd.DataFrame, batch_size: int = 32):
     """Trains the autoencoder on the provided data using batch processing."""
 
+    # List available gpus
+    print('Available gpus:', torch.cuda.device_count())
+
+    # Select gpu
+    gpu_id = int(input('select gpu: '))
+    torch.cuda.set_device(gpu_id)
+
     # Converting to PyTorch tensor
-    X_tensor = torch.FloatTensor(X_scaled)
+    X_tensor = torch.FloatTensor(X)
+
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+
+    X_tensor = X_tensor.to(device)
 
     # Create dataset and dataloader for batch processing
     dataloader = DataLoader(
@@ -58,7 +69,7 @@ def train(X: pd.DataFrame, batch_size: int = 32):
 
     input_size = X.shape[1]  # Number of input features
     encoding_dim = 3  # Desired number of output dimensions
-    model = UndercompleteAE(input_size, encoding_dim)
+    model = UndercompleteAE(input_size, encoding_dim).to(device)
 
     # Loss function and optimizer
     criterion = MSELoss()
@@ -71,7 +82,7 @@ def train(X: pd.DataFrame, batch_size: int = 32):
         num_batches = 0
 
         for batch_data in dataloader:
-            batch_X = batch_data[0]
+            batch_X = batch_data[0].to(device)
 
             # Forward pass
             outputs = model(batch_X)
