@@ -23,25 +23,15 @@ import training.loss as loss
 
 params_count = len(sys.argv) - 1
 
-if params_count < 5:
-    print("Usage: python3 train.py path_to_csv batch_size num_epochs encoding_dim cuda_src")
-    print("  path_to_csv: Path to the CSV file containing the data")
-    print("  batch_size: Batch size for training")
-    print("  num_epochs: Number of backprop cycles")
-    print("  encoding_dim: Encoding dimensions")
-    print("  cuda_src: Set nvidia gpu")
-    sys.exit(1)
+CUDA_SRC = 0
 
-CSV_SOURCE = sys.argv[1]
-BATCH_SIZE = int(sys.argv[2])
-NUM_EPOCHS = int(sys.argv[3])
-ENCODING_DIM = int(sys.argv[4])
-CUDA_SRC = int(sys.argv[5])
-
-def setup():
+def setup(csv, cuda_src):
     """Sets up the environment by reading the CSV file and preparing the data."""
 
-    df = pd.read_csv(CSV_SOURCE)
+    global CUDA_SRC
+    CUDA_SRC = cuda_src
+
+    df = pd.read_csv(csv)
 
     df = df.drop('url', axis=1)
     remaining_labels = df.pop('label')
@@ -50,7 +40,7 @@ def setup():
 
     return X, remaining_labels
 
-def train(X: pd.DataFrame, batch_size: int = 32):
+def train(X: pd.DataFrame, batch_size, encoding_dim, num_epochs):
     """Trains the autoencoder on the provided data using batch processing."""
 
     # Converting to PyTorch tensor
@@ -75,16 +65,16 @@ def train(X: pd.DataFrame, batch_size: int = 32):
 
     # Number of cols/input features
     input_size = X.shape[1]
-    # Desired number of output dimensions
-    encoding_dim = ENCODING_DIM
+
     model = UndercompleteAE(input_size, encoding_dim).to(device)
 
     # Loss function and optimizer
     criterion = loss.FocalLoss()
     optimizer = Adam(model.parameters(), lr=0.003, weight_decay=0)
 
+    avg_loss = 0.0
+
     # Training the autoencoder
-    num_epochs = NUM_EPOCHS
     for epoch in range(num_epochs):
         epoch_loss = 0.0
         num_batches = 0
@@ -108,11 +98,11 @@ def train(X: pd.DataFrame, batch_size: int = 32):
         print(f'Epoch [{epoch + 1}/{num_epochs}], Average Loss: {avg_loss:.4f}')
 
     # Generate encoded data for the entire dataset
-    model.eval()  # Set to evaluation mode
-    with torch.no_grad():
-        encoded_data = model.encoder(X_tensor).detach().numpy()
+    # model.eval()  # Set to evaluation mode
+    # with torch.no_grad():
+    #     encoded_data = model.encoder(X_tensor).detach().numpy()
 
-    return encoded_data, model
+    return model, avg_loss
 
 def export_data(encoded_data, filename="encodedData.csv", labels: pd.DataFrame=None) -> None:
     """Exports the encoded data to a CSV file."""
@@ -125,19 +115,3 @@ def export_data(encoded_data, filename="encodedData.csv", labels: pd.DataFrame=N
     encoded_df.to_csv(filename, index=False)
 
     print(f"Encoded data exported to {filename}")
-
-
-def main():
-    """Main function to train the autoencoder and export encoded data."""
-
-    # List available gpus
-    print('Available gpus:', torch.cuda.device_count())
-    X, labels = setup()
-    print('Dataset loaded')
-    encoded_data, model = train(X, batch_size=BATCH_SIZE)
-
-    export_data(encoded_data, labels=labels)
-    model.export()
-
-if __name__ == "__main__":
-    main()
