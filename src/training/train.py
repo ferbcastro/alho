@@ -17,16 +17,26 @@ from torch.utils.data import DataLoader, TensorDataset
 current_dir = os.path.dirname(os.path.abspath(__file__))
 src_dir = os.path.dirname(current_dir)
 sys.path.append(src_dir)
-from models.autoencoder import UndercompleteAE
 
-if len(sys.argv) < 2:
-    print("Usage: python3 train.py path_to_csv [batch_size]")
+from models.autoencoder import UndercompleteAE
+import training.loss as loss
+
+params_count = len(sys.argv) - 1
+
+if params_count < 5:
+    print("Usage: python3 train.py path_to_csv batch_size num_epochs encoding_dim cuda_src")
     print("  path_to_csv: Path to the CSV file containing the data")
-    print("  batch_size: Optional batch size for training (default: 32)")
+    print("  batch_size: Batch size for training")
+    print("  num_epochs: Number of backprop cycles")
+    print("  encoding_dim: Encoding dimensions")
+    print("  cuda_src: Set nvidia gpu")
     sys.exit(1)
 
 CSV_SOURCE = sys.argv[1]
-BATCH_SIZE = int(sys.argv[2]) if len(sys.argv) > 2 else 32
+BATCH_SIZE = int(sys.argv[2])
+NUM_EPOCHS = int(sys.argv[3])
+ENCODING_DIM = int(sys.argv[4])
+CUDA_SRC = int(sys.argv[5])
 
 def setup():
     """Sets up the environment by reading the CSV file and preparing the data."""
@@ -43,16 +53,12 @@ def setup():
 def train(X: pd.DataFrame, batch_size: int = 32):
     """Trains the autoencoder on the provided data using batch processing."""
 
-    # List available gpus
-    print('Available gpus:', torch.cuda.device_count())
-
-    # Select gpu
-    gpu_id = int(input('select gpu: '))
-    torch.cuda.set_device(gpu_id)
-
     # Converting to PyTorch tensor
     X_tensor = torch.FloatTensor(X)
 
+    # Select gpu by id
+    torch.cuda.set_device(CUDA_SRC)
+    # Set to use cpu if gpu not available
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
     X_tensor = X_tensor.to(device)
@@ -67,16 +73,18 @@ def train(X: pd.DataFrame, batch_size: int = 32):
     # Setting random seed for reproducibility
     torch.manual_seed(42)
 
-    input_size = X.shape[1]  # Number of input features
-    encoding_dim = 3  # Desired number of output dimensions
+    # Number of cols/input features
+    input_size = X.shape[1]
+    # Desired number of output dimensions
+    encoding_dim = ENCODING_DIM
     model = UndercompleteAE(input_size, encoding_dim).to(device)
 
     # Loss function and optimizer
-    criterion = MSELoss()
+    criterion = loss.FocalLoss()
     optimizer = Adam(model.parameters(), lr=0.003, weight_decay=0)
 
     # Training the autoencoder
-    num_epochs = 20
+    num_epochs = NUM_EPOCHS
     for epoch in range(num_epochs):
         epoch_loss = 0.0
         num_batches = 0
@@ -122,8 +130,10 @@ def export_data(encoded_data, filename="encodedData.csv", labels: pd.DataFrame=N
 def main():
     """Main function to train the autoencoder and export encoded data."""
 
+    # List available gpus
+    print('Available gpus:', torch.cuda.device_count())
     X, labels = setup()
-
+    print('Dataset loaded')
     encoded_data, model = train(X, batch_size=BATCH_SIZE)
 
     export_data(encoded_data, labels=labels)
