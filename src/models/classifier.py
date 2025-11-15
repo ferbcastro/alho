@@ -4,29 +4,47 @@ from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_sc
 import pandas as pd
 import sys
 
-if len(sys.argv) < 2:
-    print("No dataset specified")
-    exit(1)
+bigrams_train = "dataset/bigrams/train_set_bigrams.csv"
+bigrams_test = "dataset/bigrams/test_set_bigrams.csv"
+tetragrams_train = "dataset/tetragrams/train_4_extract.csv"
+tetragrams_test = "dataset/tetragrams/test_4_extract.csv"
 
 # Load Data
 
-df = pd.read_csv(sys.argv[1])
+print("Loading files")
 
-X = df.drop(["label", "url"], axis=1).values
-y = df["label"].values
+btrain = pd.read_csv(bigrams_train)
+btest = pd.read_csv(bigrams_test)
+ttrain = pd.read_csv(tetragrams_train).drop(["label", "url"], axis=1)
+ttest = pd.read_csv(tetragrams_test).drop(["label", "url"], axis=1)
 
+train = pd.concat([btrain, ttrain], axis=1)
+test = pd.concat([btest, ttest], axis=1)
+
+print("Preparing datasets")
+
+X_train = train.drop(["label", "url"], axis=1).values
+y_train = train["label"].values
+
+X_test = test.drop(["label", "url"], axis=1).values
+y_test = test["label"].values
+
+"""
 X_train, X_test, y_train, y_test = train_test_split(
-    X, y, test_size=0.2, random_state=42
+    X, y, test_size=0.5, random_state=42
 )
+"""
 
 # Train
+
+print("Training...")
 
 model = lgb.LGBMClassifier(
     objective="binary",
     learning_rate=0.1,
-    num_leaves=64,
+    num_leaves=32,
     device_type="gpu",
-    n_estimators=500,
+    n_estimators=100,
 )
 
 model.fit(X_train, y_train)
