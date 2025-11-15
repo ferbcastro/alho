@@ -11,7 +11,7 @@ alpha deve ser alto para atribuir erro maior para instâncias de classe 1.
 '''
 
 class FocalLoss(nn.Module):
-    def __init__(self, alpha=1, gamma=2, reduction='mean'):
+    def __init__(self, alpha=0.9, gamma=2, reduction='mean'):
         super(FocalLoss, self).__init__()
         self.alpha = alpha  # controls class imbalance
         self.gamma = gamma  # focuses on hard examples
@@ -19,8 +19,6 @@ class FocalLoss(nn.Module):
 
     def forward(self, inputs, targets):
         """ Focal loss for binary classification. """
-        probs = torch.sigmoid(inputs)
-        targets = targets.float()
 
         # Compute binary cross entropy
         bce_loss = nn.functional.binary_cross_entropy_with_logits(inputs, targets, reduction='none')

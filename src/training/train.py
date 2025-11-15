@@ -94,7 +94,7 @@ def train(X, batch_size, encoding_dim, num_epochs):
             num_batches += 1
 
         avg_loss = epoch_loss / num_batches
-        print(f'Epoch [{epoch + 1}/{num_epochs}], Average Loss: {avg_loss:.4f}')
+        print(f'\t Epoch [{epoch + 1}/{num_epochs}], Average Loss: {avg_loss:.4f}')
 
     return model
 
@@ -109,7 +109,7 @@ def test(model, X):
 
     with torch.no_grad():
         output = model(X_tensor)
-        acc = (output.round() == X).float().mean()
+        acc = (output * X + (1 - output) * (1 - X)).mean()
 
     return acc
 

@@ -47,6 +47,7 @@ print('Datasets loaded')
 
 best_acc = -1
 
+print('Start validation process')
 for params in permute(param_grid):
     b = params['epochs']
     ep = params['batches']
@@ -56,10 +57,14 @@ for params in permute(param_grid):
     print(f'Model complete')
 
     acc = ml.test(model, test)
+    print(f'Accuracy of {acc * 100}%')
 
     if acc > best_acc:
         print(f'New best model found!')
         best_acc = acc
         best_model = model
+print('Validation ended')
 
+print('Exporting best model...')
 best_model.export()
+print('Model exported. Exiting.')
