@@ -7,8 +7,6 @@ import os
 
 import pandas as pd
 
-from sklearn.preprocessing import StandardScaler
-
 import torch
 from torch.nn import MSELoss
 from torch.optim import Adam
@@ -21,29 +19,30 @@ sys.path.append(src_dir)
 from models.autoencoder import UndercompleteAE
 import training.loss as loss
 
-params_count = len(sys.argv) - 1
-
 CUDA_SRC = 0
 
-def setup(csv, cuda_src):
+def setup(train, test, cuda_src):
     """Sets up the environment by reading the CSV file and preparing the data."""
 
     global CUDA_SRC
     CUDA_SRC = cuda_src
 
-    df = pd.read_csv(csv)
-
+    df = pd.read_csv(train)
     df = df.drop('url', axis=1)
-    remaining_labels = df.pop('label')
+    dfTrain = df
 
-    X = df
+    df = pd.read_csv(test)
+    df = df.drop('url', axis=1)
+    dfTest = df
+    # remaining_labels = df.pop('label')
 
-    return X, remaining_labels
 
-def train(X: pd.DataFrame, batch_size, encoding_dim, num_epochs):
+    return dfTrain, dfTest
+
+def train(X, batch_size, encoding_dim, num_epochs):
     """Trains the autoencoder on the provided data using batch processing."""
 
-    # Converting to PyTorch tensor
+    # Converting train dataframe to PyTorch tensor
     X_tensor = torch.FloatTensor(X)
 
     # Select gpu by id
@@ -97,12 +96,23 @@ def train(X: pd.DataFrame, batch_size, encoding_dim, num_epochs):
         avg_loss = epoch_loss / num_batches
         print(f'Epoch [{epoch + 1}/{num_epochs}], Average Loss: {avg_loss:.4f}')
 
-    # Generate encoded data for the entire dataset
-    # model.eval()  # Set to evaluation mode
-    # with torch.no_grad():
-    #     encoded_data = model.encoder(X_tensor).detach().numpy()
+    return model
 
-    return model, avg_loss
+def test(model, X):
+    X_tensor = torch.FloatTensor(X)
+    # Select gpu by id
+    torch.cuda.set_device(CUDA_SRC)
+    # Set to use cpu if gpu not available
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    # Move to selected device
+    X_tensor = X_tensor.to(device)
+
+    with torch.no_grad():
+        output = model(X_tensor)
+        acc = (output.round() == X).float().mean()
+
+    return acc
+
 
 def export_data(encoded_data, filename="encodedData.csv", labels: pd.DataFrame=None) -> None:
     """Exports the encoded data to a CSV file."""
