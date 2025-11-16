@@ -60,5 +60,6 @@ class UndercompleteAE(nn.Module):
         decoded = self.decoder(encoded)
         return decoded
 
-    def export(self, path: str = "./UCAE_state") -> None:
+    def export(self, tag=0) -> None:
+        path = f'./UCAE_state_{tag}'
         torch.save(self.state_dict(), path)

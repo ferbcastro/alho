@@ -20,11 +20,13 @@ class FocalLoss(nn.Module):
     def forward(self, inputs, targets):
         """ Focal loss for binary classification. """
 
+        # No 0s or 1s exact (numeric stability)
+        inputs = torch.clamp(inputs, 1e-7, 1 - 1e-7)
+        
         # Compute binary cross entropy
-        bce_loss = nn.functional.binary_cross_entropy_with_logits(inputs, targets, reduction='none')
-
+        bce_loss = - (targets * torch.log(inputs) + (1 - targets) * torch.log(1 - inputs))
         # Compute focal weight
-        p_t = probs * targets + (1 - probs) * (1 - targets)
+        p_t = inputs * targets + (1 - inputs) * (1 - targets)
         focal_weight = (1 - p_t) ** self.gamma
 
         # Apply alpha if provided

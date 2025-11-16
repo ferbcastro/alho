@@ -23,20 +23,22 @@ TEST_SOURCE = sys.argv[2]
 CUDA_SRC = int(sys.argv[3])
 
 param_grid = {
-    'epochs': [10, 20, 30],
-    'batches': [16, 32],
-    'encoding': [64, 128, 256, 512]
+    'epochs': [10],
+    'batches': [32],
+    'encoding': [16, 32, 64, 128, 512],
+    'compress': [0.2, 0.5, 0.7]
 }
 
+# return new dict for each combination
 def permute(dct):
     labels = list(dct.keys())
     values = list(dct.values())
     for comb in itertools.product(*values):
         yield dict(zip(labels, comb))
 
-"""
+'''
 Perform grid search. It may take too long.
-"""
+'''
 
 # List available gpus
 print('Available gpus:', torch.cuda.device_count())
@@ -45,26 +47,23 @@ print('Loading datasets...')
 train, test = ml.setup(TRAIN_SOURCE, TEST_SOURCE, cuda_src=CUDA_SRC)
 print('Datasets loaded')
 
-best_acc = -1
+cont = 1
 
 print('Start validation process')
 for params in permute(param_grid):
-    b = params['epochs']
-    ep = params['batches']
+    ep = params['epochs']
+    bs = params['batches']
     ec = params['encoding']
+    cp = params['compress']
     print(f'Computing model for {params}')
-    model = ml.train(X, batch_size=b, encoding_dim=ec, num_epochs=ep)
-    print(f'Model complete')
+    model = ml.train(train, batch_size=bs, encoding_dim=ec, num_epochs=ep, compress_rate=cp)
+    print(f'Model [{cont}] complete')
 
-    acc = ml.test(model, test)
-    print(f'Accuracy of {acc * 100}%')
+    acc = ml.test(model, test) * 100
+    print(f'Accuracy of {acc}%')
 
-    if acc > best_acc:
-        print(f'New best model found!')
-        best_acc = acc
-        best_model = model
+    print('Exporting model...')
+    model.export(cont)
+    cont += 1
 print('Validation ended')
 
-print('Exporting best model...')
-best_model.export()
-print('Model exported. Exiting.')

@@ -8,7 +8,6 @@ import os
 import pandas as pd
 
 import torch
-from torch.nn import MSELoss
 from torch.optim import Adam
 from torch.utils.data import DataLoader, TensorDataset
 
@@ -17,7 +16,7 @@ src_dir = os.path.dirname(current_dir)
 sys.path.append(src_dir)
 
 from models.autoencoder import UndercompleteAE
-import training.loss as loss
+import training.loss as l
 
 CUDA_SRC = 0
 
@@ -27,28 +26,27 @@ def setup(train, test, cuda_src):
     global CUDA_SRC
     CUDA_SRC = cuda_src
 
-    df = pd.read_csv(train)
-    df = df.drop('url', axis=1)
-    dfTrain = df
+    df_train = pd.read_csv(train)
+    df_train = df_train.drop(['url','label'], axis=1)
+    print(f'Train df rows={df_train.shape[0]}, cols={df_train.shape[1]}')
+    
+    df_test = pd.read_csv(test)
+    df_test = df_test.drop(['url','label'], axis=1)
+    print(f'Test df rows={df_test.shape[0]}, cols={df_test.shape[1]}')
 
-    df = pd.read_csv(test)
-    df = df.drop('url', axis=1)
-    dfTest = df
-    # remaining_labels = df.pop('label')
+    return df_train, df_test
 
-
-    return dfTrain, dfTest
-
-def train(X, batch_size, encoding_dim, num_epochs):
+def train(X, batch_size, encoding_dim, num_epochs, compress_rate):
     """Trains the autoencoder on the provided data using batch processing."""
 
     # Converting train dataframe to PyTorch tensor
-    X_tensor = torch.FloatTensor(X)
-
+    X_tensor = torch.from_numpy(X.to_numpy()).float()
+    
     # Select gpu by id
     torch.cuda.set_device(CUDA_SRC)
     # Set to use cpu if gpu not available
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    print('Device is', device)
 
     X_tensor = X_tensor.to(device)
 
@@ -65,10 +63,10 @@ def train(X, batch_size, encoding_dim, num_epochs):
     # Number of cols/input features
     input_size = X.shape[1]
 
-    model = UndercompleteAE(input_size, encoding_dim).to(device)
+    model = UndercompleteAE(input_size, encoding_dim, compress_rate).to(device)
 
     # Loss function and optimizer
-    criterion = loss.FocalLoss()
+    criterion = l.FocalLoss()
     optimizer = Adam(model.parameters(), lr=0.003, weight_decay=0)
 
     avg_loss = 0.0
@@ -99,7 +97,7 @@ def train(X, batch_size, encoding_dim, num_epochs):
     return model
 
 def test(model, X):
-    X_tensor = torch.FloatTensor(X)
+    X_tensor = torch.from_numpy(X.to_numpy()).float()
     # Select gpu by id
     torch.cuda.set_device(CUDA_SRC)
     # Set to use cpu if gpu not available
@@ -109,7 +107,7 @@ def test(model, X):
 
     with torch.no_grad():
         output = model(X_tensor)
-        acc = (output * X + (1 - output) * (1 - X)).mean()
+        acc = (output * X_tensor + (1 - output) * (1 - X_tensor)).mean()
 
     return acc
 
