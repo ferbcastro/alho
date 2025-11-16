@@ -59,7 +59,7 @@ for params in permute(param_grid):
     model = ml.train(train, batch_size=bs, encoding_dim=ec, num_epochs=ep, compress_rate=cp)
     print(f'Model [{cont}] complete')
 
-    acc = ml.test(model, test) * 100
+    acc = ml.validate(model, test) * 100
     print(f'Accuracy of {acc}%')
 
     print('Exporting model...')

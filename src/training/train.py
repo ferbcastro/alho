@@ -29,7 +29,7 @@ def setup(train, test, cuda_src):
     df_train = pd.read_csv(train)
     df_train = df_train.drop(['url','label'], axis=1)
     print(f'Train df rows={df_train.shape[0]}, cols={df_train.shape[1]}')
-    
+
     df_test = pd.read_csv(test)
     df_test = df_test.drop(['url','label'], axis=1)
     print(f'Test df rows={df_test.shape[0]}, cols={df_test.shape[1]}')
@@ -41,7 +41,7 @@ def train(X, batch_size, encoding_dim, num_epochs, compress_rate):
 
     # Converting train dataframe to PyTorch tensor
     X_tensor = torch.from_numpy(X.to_numpy()).float()
-    
+
     # Select gpu by id
     torch.cuda.set_device(CUDA_SRC)
     # Set to use cpu if gpu not available
@@ -96,7 +96,7 @@ def train(X, batch_size, encoding_dim, num_epochs, compress_rate):
 
     return model
 
-def test(model, X):
+def validate(model, X):
     X_tensor = torch.from_numpy(X.to_numpy()).float()
     # Select gpu by id
     torch.cuda.set_device(CUDA_SRC)
@@ -105,9 +105,13 @@ def test(model, X):
     # Move to selected device
     X_tensor = X_tensor.to(device)
 
+    model.eval()
+
     with torch.no_grad():
         output = model(X_tensor)
         acc = (output * X_tensor + (1 - output) * (1 - X_tensor)).mean()
+
+    model.train()
 
     return acc
 
