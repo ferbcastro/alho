@@ -61,9 +61,6 @@ for i, tag in enumerate(model_tags):
     print('Encoding for model', tag)
     model = UndercompleteAE(input_dim=input_dims, latent_dim=model_encodings[i], compression_rate=compress_rates[i]).to(device)
     model_state_path = f'{models_dir}/UCAE_state_{tag}'
-    model.load_state_dict(torch.load(model_state_path, map_location=device))
-
-    model.eval()
 
     try:
         model.load_state_dict(torch.load(model_state_path, map_location=device))
