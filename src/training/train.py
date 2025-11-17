@@ -7,53 +7,46 @@ import os
 
 import pandas as pd
 
-from sklearn.preprocessing import StandardScaler
-
 import torch
-from torch.nn import MSELoss
 from torch.optim import Adam
 from torch.utils.data import DataLoader, TensorDataset
 
 current_dir = os.path.dirname(os.path.abspath(__file__))
 src_dir = os.path.dirname(current_dir)
 sys.path.append(src_dir)
+
 from models.autoencoder import UndercompleteAE
+import training.loss as l
 
-if len(sys.argv) < 2:
-    print("Usage: python3 train.py path_to_csv [batch_size]")
-    print("  path_to_csv: Path to the CSV file containing the data")
-    print("  batch_size: Optional batch size for training (default: 32)")
-    sys.exit(1)
+CUDA_SRC = 0
 
-CSV_SOURCE = sys.argv[1]
-BATCH_SIZE = int(sys.argv[2]) if len(sys.argv) > 2 else 32
-
-def setup():
+def setup(train, test, cuda_src):
     """Sets up the environment by reading the CSV file and preparing the data."""
 
-    df = pd.read_csv(CSV_SOURCE)
+    global CUDA_SRC
+    CUDA_SRC = cuda_src
 
-    df = df.drop('url', axis=1)
-    remaining_labels = df.pop('label')
+    df_train = pd.read_csv(train)
+    df_train = df_train.drop(['url','label'], axis=1)
+    print(f'Train df rows={df_train.shape[0]}, cols={df_train.shape[1]}')
 
-    X = df
+    df_test = pd.read_csv(test)
+    df_test = df_test.drop(['url','label'], axis=1)
+    print(f'Test df rows={df_test.shape[0]}, cols={df_test.shape[1]}')
 
-    return X, remaining_labels
+    return df_train, df_test
 
-def train(X: pd.DataFrame, batch_size: int = 32):
+def train(X, batch_size, encoding_dim, num_epochs, compress_rate):
     """Trains the autoencoder on the provided data using batch processing."""
 
-    # List available gpus
-    print('Available gpus:', torch.cuda.device_count())
+    # Converting train dataframe to PyTorch tensor
+    X_tensor = torch.from_numpy(X.to_numpy()).float()
 
-    # Select gpu
-    gpu_id = int(input('select gpu: '))
-    torch.cuda.set_device(gpu_id)
-
-    # Converting to PyTorch tensor
-    X_tensor = torch.FloatTensor(X)
-
+    # Select gpu by id
+    torch.cuda.set_device(CUDA_SRC)
+    # Set to use cpu if gpu not available
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    print('Device is', device)
 
     X_tensor = X_tensor.to(device)
 
@@ -67,16 +60,18 @@ def train(X: pd.DataFrame, batch_size: int = 32):
     # Setting random seed for reproducibility
     torch.manual_seed(42)
 
-    input_size = X.shape[1]  # Number of input features
-    encoding_dim = 3  # Desired number of output dimensions
-    model = UndercompleteAE(input_size, encoding_dim).to(device)
+    # Number of cols/input features
+    input_size = X.shape[1]
+
+    model = UndercompleteAE(input_size, encoding_dim, compress_rate).to(device)
 
     # Loss function and optimizer
-    criterion = MSELoss()
+    criterion = l.FocalLoss()
     optimizer = Adam(model.parameters(), lr=0.003, weight_decay=0)
 
+    avg_loss = 0.0
+
     # Training the autoencoder
-    num_epochs = 20
     for epoch in range(num_epochs):
         epoch_loss = 0.0
         num_batches = 0
@@ -97,14 +92,29 @@ def train(X: pd.DataFrame, batch_size: int = 32):
             num_batches += 1
 
         avg_loss = epoch_loss / num_batches
-        print(f'Epoch [{epoch + 1}/{num_epochs}], Average Loss: {avg_loss:.4f}')
+        print(f'\t Epoch [{epoch + 1}/{num_epochs}], Average Loss: {avg_loss:.4f}')
 
-    # Generate encoded data for the entire dataset
-    model.eval()  # Set to evaluation mode
+    return model
+
+def validate(model, X):
+    X_tensor = torch.from_numpy(X.to_numpy()).float()
+    # Select gpu by id
+    torch.cuda.set_device(CUDA_SRC)
+    # Set to use cpu if gpu not available
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    # Move to selected device
+    X_tensor = X_tensor.to(device)
+
+    model.eval()
+
     with torch.no_grad():
-        encoded_data = model.encoder(X_tensor).detach().numpy()
+        output = model(X_tensor)
+        acc = (output * X_tensor + (1 - output) * (1 - X_tensor)).mean()
 
-    return encoded_data, model
+    model.train()
+
+    return acc
+
 
 def export_data(encoded_data, filename="encodedData.csv", labels: pd.DataFrame=None) -> None:
     """Exports the encoded data to a CSV file."""
@@ -117,17 +127,3 @@ def export_data(encoded_data, filename="encodedData.csv", labels: pd.DataFrame=N
     encoded_df.to_csv(filename, index=False)
 
     print(f"Encoded data exported to {filename}")
-
-
-def main():
-    """Main function to train the autoencoder and export encoded data."""
-
-    X, labels = setup()
-
-    encoded_data, model = train(X, batch_size=BATCH_SIZE)
-
-    export_data(encoded_data, labels=labels)
-    model.export()
-
-if __name__ == "__main__":
-    main()
