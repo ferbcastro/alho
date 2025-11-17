@@ -23,16 +23,17 @@ test_path = 'bigrams/test_set_bigrams.csv'
 models_dir = 'UCAE/'
 model_tags = [1, 4, 7, 10] # change
 model_encodings = [32, 64, 128, 512]
+compress_rates = [0.2, 0.2, 0.2, 0.2, 0.7]
 
 print('Loading dataframes...')
 df_to_concat = []
 for path in concat_paths:
     df_to_concat.append(pd.read_csv(path))
-concat_df = pd.concat(df_to_concat, axis=0, ignore_index=True)
+concat_df = pd.concat(df_to_concat, axis=0, ignore_index=True).drop('url', axis=1)
 concat_label = concat_df.pop('label')
 print('Concat dimensions:', concat_df.shape)
 
-test_df = pd.read_csv(test_path)
+test_df = pd.read_csv(test_path).drop('url', axis=1)
 test_label = test_df.pop('label')
 print('Dataframes loaded')
 
@@ -58,7 +59,7 @@ test_tensor = test_tensor.to(device)
 
 for i, tag in enumerate(model_tags):
     print('Encoding for model', tag)
-    model = UndercompleteAE(input_dim=input_dims, latent_dim=model_encodings[i]).to(device)
+    model = UndercompleteAE(input_dim=input_dims, latent_dim=model_encodings[i], compression_rate=compress_rates[i]).to(device)
     model_state_path = f'{models_dir}/UCAE_state_{tag}'
     model.load_state_dict(torch.load(model_state_path, map_location=device))
 
@@ -66,7 +67,7 @@ for i, tag in enumerate(model_tags):
 
     try:
         model.load_state_dict(torch.load(model_state_path, map_location=device))
-        model.eval()  # Importante: colocar o modelo em modo de avaliação
+        model.eval()
 
         with torch.no_grad():
             train_encode = model.encode(train_tensor)
